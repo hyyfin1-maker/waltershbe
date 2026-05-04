@@ -1,0 +1,125 @@
+repeat task.wait() until game:IsLoaded()
+
+--> Services <--
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+--> Player <--
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+--> Tool <--
+local tool = nil
+local handle = nil
+
+--> Attack Control <--
+local attackRequested = false
+local attackCooldown = false
+local maxReach = 15 -- Maximum sword reach in studs
+
+--> Respawn <--
+player.CharacterAdded:Connect(function(char)
+    character = char
+    hrp = char:WaitForChild("HumanoidRootPart")
+    tool = nil
+    handle = nil
+end)
+
+--> Click Detection <--
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if not attackCooldown then
+            attackRequested = true
+        end
+    end
+end)
+
+--> Closest Player <--
+local function GetClosestPlayer()
+    local closest, dist = nil, math.huge
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character
+            and plr.Character:FindFirstChild("HumanoidRootPart")
+            and plr.Character:FindFirstChild("Humanoid")
+            and plr.Character.Humanoid.Health > 0 then
+
+            local mag = (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if mag < dist then
+                dist = mag
+                closest = plr
+            end
+        end
+    end
+    return closest
+end
+
+--> MAIN LOOP <--
+RunService.RenderStepped:Connect(function()
+
+    local target = GetClosestPlayer()
+    if not target then return end
+
+    local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+
+    --> Find Tool + Handle <--
+    for _, v in ipairs(character:GetChildren()) do
+        if v:IsA("Tool") then
+            for _, p in ipairs(v:GetDescendants()) do
+                if p:IsA("BasePart") and p:FindFirstChild("TouchInterest") then
+                    tool = v
+                    handle = p
+                    break
+                end
+            end
+            break
+        end
+    end
+
+    if not tool or not handle then return end
+
+    --> Calculate distance to target <--
+    local distance = (targetHRP.Position - hrp.Position).Magnitude
+    
+    --> Reach ONLY (no rotation) <--
+    if distance <= maxReach then
+        -- Set hitbox size to match reach distance
+        handle.Size = Vector3.new(4, 4, maxReach)
+        -- Position hitbox in front of player
+        handle.Position = hrp.Position + hrp.CFrame.LookVector * (maxReach/2)
+    else
+        -- Small size when not attacking
+        handle.Size = Vector3.new(1, 1, 1)
+        handle.Position = hrp.Position
+    end
+
+    -- INVISIBLE HITBOX (no grey box)
+    handle.LocalTransparencyModifier = 1
+    handle.CanCollide = false
+
+    --> ATTACK (rotate once) <--
+    if attackRequested then
+        -- Only attack if target is within reach
+        if distance <= maxReach then
+            attackRequested = false
+            attackCooldown = true
+
+            hrp.CFrame = CFrame.lookAt(
+                hrp.Position,
+                Vector3.new(targetHRP.Position.X, hrp.Position.Y, targetHRP.Position.Z)
+            )
+
+            tool:Activate()
+
+            task.delay(0.3, function()
+                attackCooldown = false
+            end)
+        else
+            attackRequested = false
+        end
+    end
+end)
