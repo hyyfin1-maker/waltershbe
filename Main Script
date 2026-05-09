@@ -17,7 +17,7 @@ local handle = nil
 --> Attack Control <--
 local attackRequested = false
 local attackCooldown = false
-local maxReach = 19 -- Maximum sword reach in studs
+local maxReach = 17 -- Maximum sword reach in studs
 
 --> Respawn <--
 player.CharacterAdded:Connect(function(char)
